@@ -1,0 +1,131 @@
+{
+  "name": "D2C — Sync asignación Chatwoot → HubSpot",
+  "nodes": [
+    {
+      "id": "6cf67de2-35d2-46a8-afae-9aaa92733612",
+      "name": "Webhook Chatwoot (conversation_updated)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "a0000000-0000-4000-8000-000000000001",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatwoot-asignacion",
+        "responseMode": "onReceived",
+        "options": {
+          "noResponseBody": true,
+          "onlyRunIf": "={{ !Array.isArray($json.body.changed_attributes) || $json.body.changed_attributes.length === 0 || $json.body.changed_attributes.some(c => Object.keys(c || {}).includes('assignee_id')) }}"
+        }
+      }
+    },
+    {
+      "id": "b29a4c2d-652c-4a9d-aeeb-b482c4a96bc1",
+      "name": "Normalizar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const raw = $input.first().json;\nconst b = raw.body ?? raw;\nconst AGENTS = { 3: 'Ana Gomez', 4: 'Beatriz Ruiz', 6: 'Carolina Diaz', 7: 'Diana Mejia' };\nif (b.event && b.event !== 'conversation_updated') { return []; }\nconst conv = b.conversation ?? b;\nconst convId = conv.id;\nif (!convId) { return []; }\nconst changed = b.changed_attributes ?? conv.changed_attributes;\nif (Array.isArray(changed) && changed.length && !changed.some(c => Object.keys(c || {}).includes('assignee_id'))) { return []; }\nconst assignee = conv.meta?.assignee ?? b.assignee ?? null;\nconst assigneeId = assignee?.id ?? null;\nconst agente = AGENTS[assigneeId];\nif (!agente) { return []; }\nconst accountId = b.account?.id ?? b.account_id ?? conv.account_id ?? 1;\nconst url = 'https://chatwoot.example.com/app/accounts/' + accountId + '/conversations/' + convId;\nconst phone = String(conv.meta?.sender?.phone_number ?? '').trim();\nconst digits = phone.replace(/[^0-9]/g, '');\nconst groups = [{ filters: [{ propertyName: 'conversation_transcript_url', operator: 'EQ', value: url }] }];\nif (digits) {\n  groups.push({ filters: [{ propertyName: 'whatsapp_id', operator: 'EQ', value: '+' + digits }] });\n  groups.push({ filters: [{ propertyName: 'whatsapp_id', operator: 'EQ', value: digits }] });\n  groups.push({ filters: [{ propertyName: 'phone', operator: 'EQ', value: '+' + digits }] });\n}\nreturn [{ json: { conversation_id: convId, account_id: accountId, assignee_id: assigneeId, agente: agente, transcript_url: url, phone: phone, searchBody: { filterGroups: groups, properties: ['agente', 'conversation_transcript_url', 'whatsapp_id', 'phone', 'firstname'], limit: 5 } } }];"
+      }
+    },
+    {
+      "id": "6c86c648-a127-414a-8506-09a6f1f6fca4",
+      "name": "Buscar contacto (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [440, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.searchBody) }}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "8ba79420-293c-4f8b-87a3-005eafacc376",
+      "name": "Decidir actualizacion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const src = $('Normalizar evento').first().json;\nconst results = $input.first().json.results ?? [];\nif (!results.length) { return []; }\nconst c = results[0];\nconst current = c.properties?.agente ?? null;\nif (current === src.agente) { return []; }\nreturn [{ json: { contact_id: c.id, agente: src.agente, agente_anterior: current, conversation_id: src.conversation_id } }];"
+      }
+    },
+    {
+      "id": "806d07ff-021a-47bc-8f63-762617ebb486",
+      "name": "Actualizar agente (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [880, 0],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { agente: $json.agente } }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "8d2048cc-5d1e-497b-9e48-6234c13e2fc4",
+      "name": "Sticky Note a40a1019",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-50, -50],
+      "parameters": {
+        "content": "## Chatwoot -> HubSpot\n\nCuando una asesora se asigna un chat en Chatwoot, escribe su nombre en la propiedad `agente` del contacto en HubSpot.\n\n**Webhook a configurar en Chatwoot** (Configuracion > Integraciones > Webhooks), solo con el evento `conversation_updated`:\nhttps://n8n.example.com/webhook/chatwoot-asignacion\n\n**Mapa de agentes:** 3 Ana Gomez / 4 Beatriz Ruiz / 6 Carolina Diaz / 7 Diana Mejia. Cualquier otro asignado, o sin asignar, se ignora.\n\n**Anti-bucle:** si el contacto ya tiene ese valor en `agente`, no se escribe nada y la cadena se detiene.",
+        "color": 4,
+        "width": 1180,
+        "height": 200
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Chatwoot (conversation_updated)": {
+      "main": [[{ "node": "Normalizar evento", "type": "main", "index": 0 }]]
+    },
+    "Normalizar evento": {
+      "main": [[{ "node": "Buscar contacto (HubSpot)", "type": "main", "index": 0 }]]
+    },
+    "Buscar contacto (HubSpot)": {
+      "main": [[{ "node": "Decidir actualizacion", "type": "main", "index": 0 }]]
+    },
+    "Decidir actualizacion": {
+      "main": [[{ "node": "Actualizar agente (HubSpot)", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "id": "pTvpKQtFgq6PN64K",
+  "versionId": "edf8b90b-3c52-4248-8248-f516f3bf7cc4",
+  "meta": {
+    "instanceId": "n8n.example.com"
+  },
+  "tags": []
+}

@@ -1,0 +1,775 @@
+{
+  "name": "D2C — Sync asignación HubSpot → Chatwoot",
+  "nodes": [
+    {
+      "id": "9465641d-c9c1-42ea-bff0-ffbb8f3d85a3",
+      "name": "HubSpot — Contact Property Changed",
+      "type": "n8n-nodes-base.hubspotTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        272
+      ],
+      "webhookId": "a0000000-0000-4000-8000-000000000002",
+      "parameters": {
+        "eventsUi": {
+          "eventValues": [
+            {
+              "name": "contact.propertyChange",
+              "property": "=agente"
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "credentials": {
+        "hubspotDeveloperApi": {
+          "id": "r27St1NAT3o0PPM7",
+          "name": "HubSpot Developer account"
+        }
+      }
+    },
+    {
+      "id": "87fa17a1-9e7c-4798-bf96-0e9ec3fe9387",
+      "name": "Extraer contactos del evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        272
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const items = $input.all().map(i => i.json);\nlet events = items;\nif (items.length === 1 && Array.isArray(items[0].body)) { events = items[0].body; }\nconst ids = [];\nfor (const e of events) {\n  if (!e) { continue; }\n  if (e.subscriptionType && e.subscriptionType !== 'contact.propertyChange') { continue; }\n  if (e.propertyName && e.propertyName !== 'agente') { continue; }\n  const rawId = e.contactId ?? e.objectId;\n  if (!rawId) { continue; }\n  const id = String(rawId);\n  if (!ids.includes(id)) { ids.push(id); }\n}\nif (!ids.length) { return []; }\nreturn [{ json: { batchBody: { properties: ['agente', 'conversation_transcript_url', 'firstname', 'phone', 'whatsapp_id'], inputs: ids.map(id => ({ id: id })) } } }];"
+      }
+    },
+    {
+      "id": "31fc15ac-1da4-4a89-a253-f39e8180f300",
+      "name": "Leer contactos (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        272
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/batch/read",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.batchBody) }}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "bb4abd96-a3db-4ee8-81fc-a3f7571bb3e2",
+      "name": "Respaldo cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "43717685-c233-4b39-870e-190f253910e9",
+      "name": "Contactos con agente (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\"filterGroups\":[{\"filters\":[{\"propertyName\":\"agente\",\"operator\":\"HAS_PROPERTY\"},{\"propertyName\":\"lastmodifieddate\",\"operator\":\"GTE\",\"value\":\"{{ $now.minus({ minutes: 20 }).toMillis() }}\"}]}],\"properties\":[\"agente\",\"conversation_transcript_url\",\"firstname\",\"phone\",\"whatsapp_id\",\"lastmodifieddate\"],\"limit\":100}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "323271df-e25b-4efb-bed6-cfd7948cdf40",
+      "name": "Preparar asignaciones",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const AGENT_IDS = { 'Ana Gomez': 3, 'Beatriz Ruiz': 4, 'Carolina Diaz': 6, 'Diana Mejia': 7 };\nconst results = $input.first().json.results ?? [];\nconst out = [];\nfor (const c of results) {\n  const p = c.properties ?? {};\n  const agente = p.agente;\n  const assigneeId = AGENT_IDS[agente];\n  if (!assigneeId) { continue; }\n  const url = String(p.conversation_transcript_url ?? '');\n  const parts = url.split('/conversations/');\n  if (parts.length < 2) { continue; }\n  const conversationId = parseInt(parts[1], 10);\n  if (!conversationId) { continue; }\n  const accParts = parts[0].split('/accounts/');\n  const accountId = accParts.length > 1 ? parseInt(accParts[1], 10) : 1;\n  out.push({ json: { contact_id: c.id, firstname: p.firstname ?? null, agente: agente, assignee_id: assigneeId, account_id: accountId, conversation_id: conversationId } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "6e57b382-7df6-4c8e-a0c6-b796821289ea",
+      "name": "Leer conversacion (Chatwoot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://chatwoot.example.com/api/v1/accounts/{{ $json.account_id }}/conversations/{{ $json.conversation_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Fer12HMq8MLEmIJu",
+          "name": "Chatwoot API (service user)"
+        }
+      }
+    },
+    {
+      "id": "a62a2e11-55a3-40a0-8c3a-72415c559c1b",
+      "name": "Decidir asignacion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const desired = $('Preparar asignaciones').all();\nconst convs = $input.all();\nconst out = [];\nfor (let i = 0; i < convs.length; i++) {\n  const d = desired[i] ? desired[i].json : null;\n  const c = convs[i] ? convs[i].json : null;\n  if (!d || !c || !c.id) { continue; }\n  const current = c.meta?.assignee?.id ?? null;\n  if (current === d.assignee_id) { continue; }\n  out.push({ json: { contact_id: d.contact_id, agente: d.agente, assignee_id: d.assignee_id, account_id: d.account_id, conversation_id: d.conversation_id, assignee_actual: current } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "40b9cf5a-2e08-4750-8243-063a1ab63a5f",
+      "name": "Asignar conversacion (Chatwoot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1104,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://chatwoot.example.com/api/v1/accounts/{{ $json.account_id }}/conversations/{{ $json.conversation_id }}/assignments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ assignee_id: $json.assignee_id }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Fer12HMq8MLEmIJu",
+          "name": "Chatwoot API (service user)"
+        }
+      }
+    },
+    {
+      "id": "9586c6df-db9b-4daf-8bd7-eedff0a9cf45",
+      "name": "Sticky Note e30c7781",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -48
+      ],
+      "parameters": {
+        "content": "## HubSpot -> Chatwoot\n\nDos entradas hacia la misma cadena:\n\n1. **HubSpot Trigger** (`contact.propertyChange` sobre `agente`), la via principal. Verificado 13/08: 2 segundos desde el cambio en HubSpot hasta la asignacion en Chatwoot. Credencial `HubSpot Developer account`, app publica id <APP_ID> instalada en el portal <PORTAL_ID>.\n2. **Respaldo cada 15 minutos**: busca contactos con `agente` modificados en los ultimos 20 min. Cubre eventos perdidos si el servidor estuvo dormido o caido.\n\nEl evento solo trae el id del contacto (el nodo lo llama `contactId`, no `objectId`), asi que `Leer contactos (HubSpot)` usa batch/read, que devuelve la misma forma que la busqueda del respaldo. Por eso las dos entradas comparten todo lo de abajo.\n\nLa conversacion sale de `conversation_transcript_url` del contacto.\n\n**Mapa:** Ana Gomez 3 / Beatriz Ruiz 4 / Carolina Diaz 6 / Diana Mejia 7.\n\n**Anti-bucle:** primero lee la conversacion; si ya esta asignada a esa persona no hace nada.",
+        "color": 3,
+        "width": 1400,
+        "height": 260
+      }
+    },
+    {
+      "id": "cb39302f-e3e0-4757-ba8f-1879a9e3657b",
+      "name": "Preparar tickets del contacto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        560
+      ],
+      "parameters": {
+        "jsCode": "const AGENTES = ['Ana Gomez', 'Beatriz Ruiz', 'Carolina Diaz', 'Diana Mejia'];\nconst FASE_CERRADA = '4';\nconst results = $input.first().json.results ?? [];\nconst out = [];\nconst vistos = [];\nfor (const c of results) {\n  const agente = c.properties?.agente;\n  if (!AGENTES.includes(agente)) { continue; }\n  const contactId = String(c.id);\n  if (vistos.includes(contactId)) { continue; }\n  vistos.push(contactId);\n  out.push({ json: { contact_id: contactId, agente: agente, searchBody: { filterGroups: [{ filters: [{ propertyName: 'associations.contact', operator: 'EQ', value: contactId }, { propertyName: 'hs_pipeline_stage', operator: 'NEQ', value: FASE_CERRADA }] }], properties: ['agente', 'subject', 'hs_pipeline_stage'], limit: 100 } } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "39c98abf-a57e-49dc-aa40-806b2246b0b1",
+      "name": "Buscar tickets del contacto (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        560
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.searchBody) }}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "673681cb-b5e0-44e4-8beb-a85a784cf28c",
+      "name": "Decidir tickets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        560
+      ],
+      "parameters": {
+        "jsCode": "const origen = $('Preparar tickets del contacto').all();\nconst respuestas = $input.all();\nconst out = [];\nfor (let i = 0; i < respuestas.length; i++) {\n  const src = origen[i] ? origen[i].json : null;\n  if (!src) { continue; }\n  const tickets = respuestas[i]?.json?.results ?? [];\n  for (const t of tickets) {\n    const actual = t.properties?.agente ?? null;\n    if (actual === src.agente) { continue; }\n    out.push({ json: { ticket_id: String(t.id), agente: src.agente, agente_anterior: actual, contact_id: src.contact_id, subject: t.properties?.subject ?? null } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "563172fd-becc-4bea-80b0-5fa80a37b73a",
+      "name": "Actualizar agente en ticket (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1120,
+        560
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.hubapi.com/crm/v3/objects/tickets/{{ $json.ticket_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { agente: $json.agente } }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "e5911298-931f-449d-9154-d8b2a9909239",
+      "name": "Extraer tickets del evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        860
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nlet events = items;\nif (items.length === 1 && Array.isArray(items[0].body)) { events = items[0].body; }\nconst ids = [];\nfor (const e of events) {\n  if (!e) { continue; }\n  if (e.subscriptionType !== 'ticket.propertyChange') { continue; }\n  if (e.propertyName && e.propertyName !== 'agente') { continue; }\n  const rawId = e.objectId ?? e.ticketId ?? e.contactId;\n  if (!rawId) { continue; }\n  const id = String(rawId);\n  if (!ids.includes(id)) { ids.push(id); }\n}\nreturn ids.map(id => ({ json: { ticket_id: id } }));"
+      }
+    },
+    {
+      "id": "b154d07a-4153-41c4-87d6-9d96929f9b7a",
+      "name": "Leer ticket con contacto (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        860
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.hubapi.com/crm/v3/objects/tickets/{{ $json.ticket_id }}?properties=agente&associations=contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "f0237914-6f0a-4fd3-a2f9-b5031ae5f3cd",
+      "name": "Decidir contacto desde ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        860
+      ],
+      "parameters": {
+        "jsCode": "const AGENTES = ['Ana Gomez', 'Beatriz Ruiz', 'Carolina Diaz', 'Diana Mejia'];\nconst out = [];\nfor (const item of $input.all()) {\n  const t = item.json ?? {};\n  if (!t.id) { continue; }\n  const agente = t.properties?.agente;\n  if (!AGENTES.includes(agente)) { continue; }\n  const contactos = t.associations?.contacts?.results ?? [];\n  const contactId = contactos[0]?.id ?? null;\n  if (!contactId) { continue; }\n  out.push({ json: { contact_id: String(contactId), agente: agente, ticket_id: String(t.id) } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "c126ed6c-9ca8-4e7a-96f4-81dac8e7ca75",
+      "name": "Actualizar agente en contacto (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        860
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { agente: $json.agente } }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "7a5b6c1d-2e3f-4a5b-8c9d-0e1f2a3b4c5d",
+      "name": "Sticky Note tickets",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        460
+      ],
+      "parameters": {
+        "color": 5,
+        "width": 1500,
+        "height": 460,
+        "content": "## Campo `agente` en tickets\n\n**Espejo contacto -> tickets** (fila del medio). Cada vez que se lee un contacto con `agente`, por evento de HubSpot o por el respaldo de 15 min, busca sus tickets abiertos y les escribe el mismo valor. Ticket abierto = pipeline `0`, fase distinta de `4` (Closed). Si el ticket ya tiene ese valor no se escribe.\n\n**Modelo:** el contacto es la fuente de verdad. La asesora es dueña del lead completo, no de un ticket suelto: al cambiar el agente se marcan todos los tickets abiertos de ese contacto.\n\n**Verificado 21/08:** propiedad de ticket `agente` con nombre interno correcto y las mismas 4 opciones; filtro `associations.contact` OK; escritura de prueba sobre un ticket OK y revertida."
+      }
+    },
+    {
+      "id": "1d8f4a02-6c31-4f18-9a77-2b5c0e91aa10",
+      "name": "Respaldo tickets cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        1140
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2e9a5b13-7d42-4a29-8b88-3c6d1f02bb21",
+      "name": "Tickets modificados (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        1140
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\"filterGroups\":[{\"filters\":[{\"propertyName\":\"hs_lastmodifieddate\",\"operator\":\"GTE\",\"value\":\"{{ $now.minus({ minutes: 20 }).toMillis() }}\"}]}],\"properties\":[\"agente\"],\"limit\":100}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "3fab6c24-8e53-4b3a-9c99-4d7e2013cc32",
+      "name": "Preparar historial (tickets)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        1140
+      ],
+      "parameters": {
+        "jsCode": "const results = $input.first().json.results ?? [];\nconst ids = results.map(t => String(t.id));\nif (!ids.length) { return []; }\nreturn [{ json: { batchBody: { properties: ['agente'], propertiesWithHistory: ['agente'], inputs: ids.map(id => ({ id: id })) } } }];"
+      }
+    },
+    {
+      "id": "40bc7d35-9f64-4c4b-8daa-5e8f3124dd43",
+      "name": "Leer historial de tickets (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        1140
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tickets/batch/read",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.batchBody) }}",
+        "options": {}
+      },
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "id": "51cd8e46-a075-4d5c-9ebb-6f904235ee54",
+      "name": "Tickets con cambio de agente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        1140
+      ],
+      "parameters": {
+        "jsCode": "const AGENTES = ['Ana Gomez', 'Beatriz Ruiz', 'Carolina Diaz', 'Diana Mejia'];\nconst APP_PROPIA = '<SERVICE_KEY_APP_ID>';\nconst VENTANA_MIN = 20;\nconst corte = Date.now() - VENTANA_MIN * 60 * 1000;\nconst results = $input.first().json.results ?? [];\nconst out = [];\nfor (const t of results) {\n  const ultimo = (t.propertiesWithHistory?.agente ?? [])[0];\n  if (!ultimo) { continue; }\n  if (String(ultimo.sourceId ?? '') === APP_PROPIA) { continue; }\n  if (new Date(ultimo.timestamp).getTime() < corte) { continue; }\n  if (!AGENTES.includes(ultimo.value)) { continue; }\n  out.push({ json: { ticket_id: String(t.id), agente: ultimo.value, cambiado_en: ultimo.timestamp, origen: ultimo.sourceType } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "62de9f57-b186-4e6d-afcc-70a15346ff65",
+      "name": "Contacto a resincronizar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        860
+      ],
+      "parameters": {
+        "jsCode": "const ids = [];\nfor (const item of $input.all()) {\n  const rawId = item.json?.id;\n  if (!rawId) { continue; }\n  const id = String(rawId);\n  if (!ids.includes(id)) { ids.push(id); }\n}\nif (!ids.length) { return []; }\nreturn [{ json: { batchBody: { properties: ['agente', 'conversation_transcript_url', 'firstname', 'phone', 'whatsapp_id'], inputs: ids.map(id => ({ id: id })) } } }];"
+      }
+    },
+    {
+      "id": "73ef0a68-c297-4f7e-b0dd-81b26457aa76",
+      "name": "Sticky Note ticket a contacto",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        780
+      ],
+      "parameters": {
+        "color": 6,
+        "width": 1500,
+        "height": 620,
+        "content": "## Ticket -> contacto -> Chatwoot\n\nCuando una asesora se pone en el campo `agente` de un ticket, ese valor sube al contacto asociado y de ahi sigue por la cadena normal: asigna la conversacion en Chatwoot y replica el valor al resto de tickets abiertos del contacto.\n\n**Entrada por respaldo (activa).** `Tickets modificados` trae los tickets tocados en los ultimos 20 min, y `Leer historial de tickets` pide `propertiesWithHistory` de `agente`. Solo pasan los tickets cuyo ultimo cambio de `agente` es reciente y **no lo hizo la propia integracion** (`sourceId` distinto de `<SERVICE_KEY_APP_ID>`, el Service Key). Sin ese filtro, cada escritura del espejo rebotaria de vuelta.\n\n**Por que historial y no `hs_lastmodifieddate`.** El `hs_lastmodifieddate` de un ticket sube con cualquier cambio (fase, asunto, nota), asi que un ticket viejo con un agente desactualizado terminaria pisando el agente correcto del contacto. El historial dice exactamente cuando cambio `agente` y quien lo cambio.\n\n**Trigger propio a proposito.** El respaldo de tickets no cuelga del `Respaldo cada 15 minutos` de los contactos: si compartieran trigger, las dos ramas convergerian en los mismos nodos dentro de una sola ejecucion y el emparejamiento por posicion de `Decidir tickets` dejaria de ser confiable.\n\n**Entrada por webhook (pendiente).** `Extraer tickets del evento` esta construido pero desconectado del trigger. Agregar `ticket.propertyChange` a la app publica `<APP_ID>` fallo el 21/08 porque no tiene el scope `tickets`, y al intentarlo n8n desactivo el workflow. Con el scope puesto: conectar el trigger a ese nodo y bajar la latencia de 15 min a ~2 s. El respaldo se queda igual.\n\n**Cierre del circuito:** `Contacto a resincronizar` reinyecta el contacto en `Leer contactos (HubSpot)`, que es lo que ya alimenta la asignacion en Chatwoot y el espejo. Por eso esta rama no llama a Chatwoot directamente ni depende del evento de contacto de HubSpot."
+      }
+    }
+  ],
+  "connections": {
+    "HubSpot — Contact Property Changed": {
+      "main": [
+        [
+          {
+            "node": "Extraer contactos del evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer contactos del evento": {
+      "main": [
+        [
+          {
+            "node": "Leer contactos (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer contactos (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "Preparar asignaciones",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar tickets del contacto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respaldo cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Contactos con agente (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contactos con agente (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "Preparar asignaciones",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar tickets del contacto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar asignaciones": {
+      "main": [
+        [
+          {
+            "node": "Leer conversacion (Chatwoot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer conversacion (Chatwoot)": {
+      "main": [
+        [
+          {
+            "node": "Decidir asignacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir asignacion": {
+      "main": [
+        [
+          {
+            "node": "Asignar conversacion (Chatwoot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar tickets del contacto": {
+      "main": [
+        [
+          {
+            "node": "Buscar tickets del contacto (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar tickets del contacto (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "Decidir tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir tickets": {
+      "main": [
+        [
+          {
+            "node": "Actualizar agente en ticket (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer tickets del evento": {
+      "main": [
+        [
+          {
+            "node": "Leer ticket con contacto (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer ticket con contacto (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "Decidir contacto desde ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir contacto desde ticket": {
+      "main": [
+        [
+          {
+            "node": "Actualizar agente en contacto (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respaldo tickets cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Tickets modificados (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tickets modificados (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "Preparar historial (tickets)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar historial (tickets)": {
+      "main": [
+        [
+          {
+            "node": "Leer historial de tickets (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer historial de tickets (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "Tickets con cambio de agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tickets con cambio de agente": {
+      "main": [
+        [
+          {
+            "node": "Leer ticket con contacto (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar agente en contacto (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "Contacto a resincronizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contacto a resincronizar": {
+      "main": [
+        [
+          {
+            "node": "Leer contactos (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "pinData": {},
+  "id": "NtcfpSYzUWyNITwt",
+  "versionId": "c650161e-af40-4d2e-b638-375a07cc0cf2",
+  "meta": {
+    "instanceId": "n8n.example.com"
+  },
+  "tags": []
+}

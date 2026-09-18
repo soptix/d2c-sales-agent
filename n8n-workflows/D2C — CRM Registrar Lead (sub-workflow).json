@@ -1,0 +1,549 @@
+{
+  "name": "D2C — CRM Registrar Lead (sub-workflow)",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "sender_id"
+            },
+            {
+              "name": "channel"
+            },
+            {
+              "name": "contact_name"
+            },
+            {
+              "name": "account_id"
+            },
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "firstname"
+            },
+            {
+              "name": "lastname"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "project_id"
+            },
+            {
+              "name": "company_slug"
+            },
+            {
+              "name": "needs_credit"
+            },
+            {
+              "name": "financing_bank"
+            },
+            {
+              "name": "bedrooms_wanted",
+              "type": "number"
+            },
+            {
+              "name": "price_confirmation_pending",
+              "type": "boolean"
+            },
+            {
+              "name": "data_consent_given",
+              "type": "boolean"
+            },
+            {
+              "name": "create_deal",
+              "type": "boolean"
+            },
+            {
+              "name": "unit_type"
+            },
+            {
+              "name": "amount"
+            },
+            {
+              "name": "escalate",
+              "type": "boolean"
+            },
+            {
+              "name": "ticket_name"
+            },
+            {
+              "name": "ticket_description"
+            }
+          ]
+        }
+      },
+      "id": "efdf6dd6-ed1e-4002-a891-75485e2ed3eb",
+      "name": "Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -656,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "email": "={{ $('Input').item.json.email || ('sin-correo-' + $('Input').item.json.channel + '-' + ($('Input').item.json.sender_id + '').replace(/[^a-zA-Z0-9]/g, '') + '@leads.example.com') }}",
+        "additionalFields": {
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "whatsapp_id",
+                "value": "={{ $('Input').item.json.sender_id }}"
+              },
+              {
+                "property": "lead_channel",
+                "value": "={{ $('Input').item.json.channel === 'instagram' ? 'instagram_dm' : $('Input').item.json.channel }}"
+              },
+              {
+                "property": "project",
+                "value": "={{ $('Input').item.json.project_id }}"
+              },
+              {
+                "property": "lead_company",
+                "value": "={{ $('Input').item.json.company_slug }}"
+              },
+              {
+                "property": "needs_credit",
+                "value": "={{ $('Input').item.json.needs_credit }}"
+              },
+              {
+                "property": "financing_bank_preference",
+                "value": "={{ $('Input').item.json.financing_bank }}"
+              },
+              {
+                "property": "bedrooms_wanted",
+                "value": "={{ $('Input').item.json.bedrooms_wanted }}"
+              },
+              {
+                "property": "price_confirmation_pending",
+                "value": "={{ $('Input').item.json.price_confirmation_pending }}"
+              },
+              {
+                "property": "conversation_transcript_url",
+                "value": "={{ 'https://chatwoot.example.com/app/accounts/' + $('Input').item.json.account_id + '/conversations/' + $('Input').item.json.conversation_id }}"
+              },
+              {
+                "property": "data_consent_given",
+                "value": "={{ $('Input').item.json.data_consent_given }}"
+              }
+            ]
+          },
+          "firstName": "={{ $('Input').item.json.firstname || $('Input').item.json.contact_name }}",
+          "lastName": "={{ $('Input').item.json.lastname }}",
+          "phoneNumber": "={{ $('Input').item.json.phone || ($('Input').item.json.channel === 'whatsapp' ? $('Input').item.json.sender_id : '') }}"
+        },
+        "options": {}
+      },
+      "id": "7237022d-dd73-4b46-9a24-9ad1b8c09d6e",
+      "name": "Save Contact (HubSpot)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        -448,
+        112
+      ],
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-deal-0001",
+              "leftValue": "={{ $('Input').item.json.create_deal }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6df8959b-552f-4c1e-a145-05f8ea10b26e",
+      "name": "IF create deal",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "deal",
+        "stage": "1399089990",
+        "additionalFields": {
+          "amount": "={{ $('Input').item.json.amount }}",
+          "associatedVids": "={{ [$('Save Contact (HubSpot)').item.json.vid] }}",
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "project",
+                "value": "={{ $('Input').item.json.project_id }}"
+              },
+              {
+                "property": "lead_company",
+                "value": "={{ $('Input').item.json.company_slug }}"
+              },
+              {
+                "property": "unit_type_interest",
+                "value": "={{ $('Input').item.json.unit_type }}"
+              },
+              {
+                "property": "financing_bank_preference",
+                "value": "={{ $('Input').item.json.financing_bank }}"
+              }
+            ]
+          },
+          "dealName": "={{ $('Input').item.json.contact_name + ' — ' + $('Input').item.json.project_id + ($('Input').item.json.unit_type ? ' (' + $('Input').item.json.unit_type + ')' : '') }}"
+        }
+      },
+      "id": "9eb70381-185c-40a3-98a1-6c987d80074b",
+      "name": "Create Deal (HubSpot)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "544904b2-21e1-4d0a-95e2-4747f9d2670b",
+      "name": "After Deal",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-esc-0001",
+              "leftValue": "={{ $('Input').item.json.escalate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3ef256c6-ea8a-4603-ba8a-d7eb278ffdfa",
+      "name": "IF escalate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "ticket",
+        "pipelineId": "0",
+        "stageId": "1",
+        "ticketName": "={{ $('Input').item.json.ticket_name }}",
+        "additionalFields": {
+          "associatedContactIds": "={{ [$('Save Contact (HubSpot)').item.json.vid] }}",
+          "description": "={{ $('Input').item.json.ticket_description }}",
+          "priority": "HIGH"
+        }
+      },
+      "id": "ce27ca1b-4617-44ed-8f9b-b9daec13046f",
+      "name": "Create Ticket (HubSpot)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        0
+      ],
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "res-1",
+              "name": "status",
+              "type": "string",
+              "value": "ok"
+            },
+            {
+              "id": "res-2",
+              "name": "contact_vid",
+              "type": "string",
+              "value": "={{ $('Save Contact (HubSpot)').item.json.vid }}"
+            },
+            {
+              "id": "res-3",
+              "name": "deal_created",
+              "type": "boolean",
+              "value": "={{ $('Input').item.json.create_deal }}"
+            },
+            {
+              "id": "res-4",
+              "name": "ticket_created",
+              "type": "boolean",
+              "value": "={{ $('Input').item.json.escalate }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "52709b05-ff04-49ae-bb92-252c725dcb9d",
+      "name": "Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-assoc-0001",
+              "leftValue": "={{ $('Input').item.json.create_deal }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "IF deal exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1552,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.hubapi.com/crm/v4/objects/deals/{{ $('Create Deal (HubSpot)').item.json.dealId }}/associations/default/tickets/{{ $('Create Ticket (HubSpot)').item.json.objectId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Associate Deal↔Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        272
+      ],
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Save Contact (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Contact (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "IF create deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF create deal": {
+      "main": [
+        [
+          {
+            "node": "Create Deal (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "After Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Deal (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "After Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After Deal": {
+      "main": [
+        [
+          {
+            "node": "IF escalate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF escalate": {
+      "main": [
+        [
+          {
+            "node": "Create Ticket (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Ticket (HubSpot)": {
+      "main": [
+        [
+          {
+            "node": "IF deal exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF deal exists": {
+      "main": [
+        [
+          {
+            "node": "Associate Deal↔Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Associate Deal↔Ticket": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "fefbbf57-4591-4100-8904-4b6088ce1851",
+  "meta": {
+    "instanceId": "<N8N_INSTANCE_ID>"
+  },
+  "nodeGroups": [],
+  "id": "FlAO2qRZUzGWFmfE",
+  "tags": []
+}

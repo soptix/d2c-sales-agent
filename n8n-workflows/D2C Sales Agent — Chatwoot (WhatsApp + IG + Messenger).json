@@ -1,0 +1,1095 @@
+{
+  "name": "D2C Sales Agent — Chatwoot (WhatsApp + IG + Messenger)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatwoot-inbound",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2000,
+        64
+      ],
+      "id": "9c3f0b2c-3d4e-4f5a-8b6c-7d8e9f0a1b2c",
+      "name": "Chatwoot Webhook (all inboxes)",
+      "webhookId": "chatwoot-inbound"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e5111111-1111-4111-8111-111111111111",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "message_created",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "e5222222-2222-4222-8222-222222222222",
+              "leftValue": "={{ $json.body.message_type }}",
+              "rightValue": "incoming",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "e5333333-3333-4333-8333-333333333333",
+              "leftValue": "={{ $json.body.content }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "e5444444-4444-4444-8444-444444444444",
+              "leftValue": "={{ $json.body.private }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "e5555555-5555-4555-8555-555555555555",
+              "leftValue": "={{ $json.body.conversation.channel }}",
+              "rightValue": "Whatsapp|Instagram|FacebookPage|Api",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            },
+            {
+              "id": "cbad2a9a-f702-441e-9ff4-acf72d3925f5",
+              "leftValue": "={{ $json.body.conversation.meta.assignee ? 'assigned' : '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1776,
+        64
+      ],
+      "id": "b5555555-5555-4555-8555-555555555555",
+      "name": "Is Chatwoot inbound text?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c7111111-1111-4111-8111-111111111111",
+              "name": "sender_id",
+              "type": "string",
+              "value": "={{ ($json.body.conversation.channel.includes('Whatsapp') || $json.body.conversation.channel.includes('Api')) ? ($json.body.sender.phone_number || $json.body.sender.identifier) : $json.body.sender.id }}"
+            },
+            {
+              "id": "c7222222-2222-4222-8222-222222222222",
+              "name": "message_text",
+              "type": "string",
+              "value": "={{ $json.body.content }}"
+            },
+            {
+              "id": "c7333333-3333-4333-8333-333333333333",
+              "name": "contact_name",
+              "type": "string",
+              "value": "={{ $json.body.sender.name || $json.body.sender.id }}"
+            },
+            {
+              "id": "c7444444-4444-4444-8444-444444444444",
+              "name": "session_id",
+              "type": "string",
+              "value": "={{ (($json.body.conversation.channel.includes('Whatsapp') || $json.body.conversation.channel.includes('Api')) ? 'whatsapp' : ($json.body.conversation.channel.includes('Instagram') ? 'instagram' : 'messenger')) + '-' + (($json.body.conversation.channel.includes('Whatsapp') || $json.body.conversation.channel.includes('Api')) ? ($json.body.sender.phone_number || $json.body.sender.identifier) : $json.body.sender.id) }}"
+            },
+            {
+              "id": "c7555555-5555-4555-8555-555555555555",
+              "name": "channel",
+              "type": "string",
+              "value": "={{ ($json.body.conversation.channel.includes('Whatsapp') || $json.body.conversation.channel.includes('Api')) ? 'whatsapp' : ($json.body.conversation.channel.includes('Instagram') ? 'instagram' : 'messenger') }}"
+            },
+            {
+              "id": "c7666666-6666-4666-8666-666666666666",
+              "name": "conversation_id",
+              "type": "string",
+              "value": "={{ $json.body.conversation.id }}"
+            },
+            {
+              "id": "c7777777-7777-4777-8777-777777777777",
+              "name": "account_id",
+              "type": "string",
+              "value": "={{ $json.body.account.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1568,
+        64
+      ],
+      "id": "d3333333-3333-4333-8333-333333333333",
+      "name": "Normalize Chatwoot Message"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1344,
+        64
+      ],
+      "id": "aa000000-0000-4000-8000-000000000000",
+      "name": "Normalized Message"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message_text }}",
+        "options": {
+          "systemMessage": "=Eres el agente de atención al cliente de Constructora Aurora, en Ciudad Ejemplo, Colombia. Aunque tambien llevas la atencion de la Constructora Bahia, empresa hermana de Constructora Aurora. Manejas proyectos de vivienda. Atiendes por WhatsApp, Instagram y Facebook Messenger. Respondes siempre en español de Colombia, de forma cálida, breve y profesional, como asesor inmobiliario, no como chatbot genérico.\n\nFecha actual: {{ $now.format('DDDD, d LLLL yyyy') }}\n\nCanal actual de esta conversación: {{ $json.channel }}. Ya sabes por qué canal te escribe el cliente — NUNCA le preguntes por cuál canal escribe. Si el canal es whatsapp, ya tienes su número de contacto y no se lo pidas. Si es instagram o messenger, pídele un teléfono de contacto para que un asesor lo pueda llamar.\n\n## Identidad y alcance\n- Solo hablas de los proyectos de vivienda de Constructora: áreas, financiación, ubicación, acabados, disponibilidad y precios.\n- Si preguntan algo fuera de ese alcance, redirige amablemente hacia cómo puedes ayudarles con vivienda. Pero si el mensaje, aunque no sea sobre los proyectos, parece algo que un asesor humano debería atender (una propuesta comercial, un asunto de la empresa, algo que no puedes resolver tú), escálalo con un ticket en vez de redirigir.\n\n## Regla de oro: nunca inventes un precio\nLos precios, áreas, cuota inicial y disponibilidad SOLO existen en el catálogo estructurado — jamás en tu memoria ni en la conversación previa. Antes de dar cualquier cifra debes consultar la herramienta de catálogo. Si el dato no está en el catálogo (celda vacía), dilo con honestidad (\"ese dato te lo confirma un asesor\") y captura el lead — nunca redondees, estimes ni \"recuerdes\" una cifra de una conversación anterior.\n\n## Vende antes de dar el precio\nNo abras con el precio. Primero despierta interés en la vivienda: cuéntale qué la hace atractiva —ubicación y sector, áreas, acabados, qué incluye, opciones de financiación— y resuelve sus dudas. Deja el precio para el final, cuando el cliente ya conoce y valora el proyecto. La única excepción es que el cliente lo pida de forma explícita (\"¿cuánto vale?\", \"¿qué precio tiene?\"): en ese caso dáselo de una vez, sin rodeos ni condiciones, consultándolo siempre en el catálogo. Nunca esquives la pregunta del precio ni la cambies por otra cosa.\n\n## Desambiguar primero\nComo manejas varios proyectos/etapas, nunca mezcles datos de un proyecto con otro:\n- Si el cliente ya nombra un proyecto o un tipo de vivienda, identifica su project_id con la herramienta de catálogo antes de responder.\n- Si el mensaje es genérico (\"¿qué casas tienen?\", \"quiero información\"), usa la herramienta que lista los proyectos activos, preséntalos brevemente y deja que el cliente elija. A partir de ahí, ancla el resto de la conversación a ese proyecto.\n- El saludo inicial es neutral (\"¡Hola! En Constructora Aurora tenemos proyectos de vivienda en Ciudad Ejemplo...\") hasta saber qué le interesa al cliente.\n\n## Preguntas descriptivas\nAcabados, materiales, ubicación/sector, qué incluye la casa y preguntas generales de financiación se responden con la herramienta \"Get Project Info\", que trae la información descriptiva de ese proyecto desde el catálogo. No inventes detalles que no salgan de esa consulta.\n\n## Captura de datos (lead)\nEn cuanto identifiques interés real en un proyecto (no solo curiosidad), pide de forma natural: nombre completo y, si el cliente quiere compartirlo, su correo. Si el cliente escribe por WhatsApp ya tienes su número y no lo preguntes; si escribe por Instagram o Facebook Messenger, pídele un teléfono de contacto junto con el nombre para que un asesor pueda llamarlo. Registra el lead con la herramienta Registrar lead en CRM, indicando siempre el proyecto de interés. Esa herramienta guarda el contacto y, en la misma llamada, crea el negocio (deal) si pones create_deal=true (cuando haya interés concreto en una unidad) y escala con un ticket si pones escalate=true. Nunca dejes un lead con interés real sin capturar.\n\n## Cuándo escalar a un asesor humano\nEscala a un asesor llamando a la herramienta Registrar lead en CRM con escalate=true (y completa ticket_name y ticket_description) cuando: el cliente quiere pagar la cuota inicial o está listo para comprar; pregunta por crédito/financiación con un banco específico y necesita confirmación; falta un dato clave en el catálogo (ej. precio de Villa Serena aún no definido); hay una queja; el cliente pide expresamente hablar con una persona; notas confusión repetida que no logras resolver; o llega un mensaje que no trata de los proyectos de vivienda pero que igual parece relevante para un asesor (una propuesta comercial, un asunto de la empresa, algo fuera de tu alcance que una persona debería atender). Siempre avisa al cliente que un asesor lo va a contactar.\n\n## Estilo\n- Escribe como una persona real que atiende por chat, no como un bot: natural, cercano y al grano. No uses em dashes.\n- Mensajes cortos, como chat real (no bloques largos de texto).\n- Evita los emojis. Como mucho uno muy de vez en cuando si de verdad aporta calidez; nunca varios en un mensaje ni en cada respuesta.\n- Usa cifras en pesos colombianos con formato \"$200.000.000 COP\".\n",
+          "maxIterations": 15
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -832,
+        64
+      ],
+      "id": "1b2c380f-c908-4628-839d-fa75e5163a8a",
+      "name": "Sales Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-5",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 5",
+          "cachedResultUrl": ""
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        -816,
+        320
+      ],
+      "id": "51630077-27af-4b23-a075-5f15c0187e15",
+      "name": "Claude (reasoning)",
+      "credentials": {
+        "anthropicApi": {
+          "id": "bdGNbPJ9fVdLDP4H",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.session_id }}",
+        "contextWindowLength": 50
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -688,
+        320
+      ],
+      "id": "a6f97d1e-1323-4dd0-bde6-2f9ba6b3db75",
+      "name": "Conversation Memory"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Trae la información descriptiva de UN proyecto desde el catálogo: acabados y materiales, ubicación/sector, qué incluye la casa, bancos de financiación y preguntas frecuentes. Úsala para responder preguntas descriptivas (ej. \"¿cómo son los acabados?\", \"¿qué hay cerca?\", \"¿qué incluye la casa?\"). NO la uses para precios, áreas en m² ni disponibilidad — eso sale de la herramienta de precios.",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "Catálogo de Proyectos — Agente de IA",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": 1286748992,
+          "cachedResultName": "Proyectos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=1286748992"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "=project_id",
+              "lookupValue": "={{ $fromAI('project_id', 'El project_id exacto del proyecto sobre el que el cliente pregunta, ej. altos-del-rio-vi o villa-serena-3. Si no lo sabes, usa primero la herramienta que lista los proyectos activos.', 'string') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        -528,
+        320
+      ],
+      "id": "7aa811fc-935b-4663-9dba-752e43a22898",
+      "name": "Get Project Info",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TNBK2gE8IDPgrF15",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Devuelve la lista de proyectos de vivienda ACTIVOS de Constructora Aurora en Ciudad Ejemplo (proyectos Altos del Rio y Villa Serena) (project_id, Nombre del proyecto, Empresa, Ciudad / Sector, Estado de entrega, Bancos de financiacion). Úsala cuando el cliente pregunte de forma general qué proyectos o casas hay disponibles, sin haber mencionado un proyecto específico todavía.",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "Catálogo de Proyectos — Agente de IA",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1286748992,
+          "mode": "list",
+          "cachedResultName": "Proyectos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=1286748992"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        -320,
+        320
+      ],
+      "id": "1eca420a-1319-461a-abd8-19d744215a8a",
+      "name": "List Active Projects",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TNBK2gE8IDPgrF15",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Devuelve el catálogo COMPLETO de tipos de vivienda (todas las unidades de todos los proyectos) con: project_id, tipo_unidad, alcobas, area_m2, posicion (Medianera/Esquinera), precio_cop, cuota_inicial_30, saldo_70 y disponibilidad. Úsala para responder CUALQUIER pregunta sobre unidades y filtra TÚ MISMO por uno o varios criterios: número de alcobas, área en m2, rango de precio, posición, proyecto o disponibilidad (ej. \"3 habitaciones\", \"esquineras por menos de 300 millones\", \"2 cuartos en Villa Serena con al menos 90 m2\"). USA SIEMPRE esta herramienta antes de mencionar precios o áreas; nunca los inventes ni los repitas de memoria. Si el precio de una unidad viene vacío, di que un asesor lo confirma y captura el lead.",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "Catálogo de Proyectos — Agente de IA",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": 812129330,
+          "cachedResultName": "Tipos de Unidad",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit#gid=812129330"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        -320,
+        528
+      ],
+      "id": "89824bd5-c5e8-488d-9688-0ed1c8fc9c8d",
+      "name": "Look Up Unit Price & Details",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TNBK2gE8IDPgrF15",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Guarda o actualiza al cliente como contacto en HubSpot. Úsala en cuanto muestre interés real en un proyecto y tengas al menos su nombre. Requiere que existan en HubSpot las propiedades whatsapp_id, lead_channel, project, lead_company, needs_credit y financing_bank_preference.",
+        "authentication": "appToken",
+        "email": "={{ $fromAI('email', 'Correo del cliente solo si lo compartió voluntariamente; vacío si no', 'string', '') || ('sin-correo-' + $('Normalized Message').item.json.channel + '-' + ($('Normalized Message').item.json.sender_id + '').replace(/[^a-zA-Z0-9]/g, '') + '@leads.example.com') }}\n\n",
+        "additionalFields": {
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "whatsapp_id",
+                "value": "={{ $('Normalized Message').item.json.sender_id }}"
+              },
+              {
+                "property": "lead_channel",
+                "value": "={{ $('Normalized Message').item.json.channel === 'instagram' ? 'instagram_dm' : $('Normalized Message').item.json.channel }}"
+              },
+              {
+                "property": "project",
+                "value": "={{ $fromAI('project_id', 'project_id del proyecto de interés (ej. altos-del-rio-vi o villa-serena-3).', 'string') }}"
+              },
+              {
+                "property": "lead_company",
+                "value": "={{ $fromAI('company_slug', 'Slug de la empresa dueña del proyecto: exactamente aurora o bahia.', 'string') }}"
+              },
+              {
+                "property": "needs_credit",
+                "value": "={{ $fromAI('needs_credit', '¿El cliente necesita crédito? exactamente si, no o no_sabe.', 'string', 'no_sabe') }}"
+              },
+              {
+                "property": "financing_bank_preference",
+                "value": "={{ $fromAI('financing_bank', 'Banco de interés si lo mencionó: exactamente BBVA, AV Villas, Bancolombia, FNA, otro o no_sabe.', 'string', 'no_sabe') }}"
+              },
+              {
+                "property": "bedrooms_wanted",
+                "value": "={{ $fromAI('bedrooms_wanted', 'Número de alcobas que busca el cliente si lo mencionó; solo el número.', 'number', '') }}"
+              },
+              {
+                "property": "price_confirmation_pending",
+                "value": "={{ $fromAI('price_confirmation_pending', 'true si el agente NO pudo confirmar un precio del catálogo para lo que pidió el cliente; false si el precio sí estaba disponible.', 'boolean', 'false') }}"
+              },
+              {
+                "property": "conversation_transcript_url",
+                "value": "={{ 'https://chatwoot.example.com/app/accounts/' + $('Normalized Message').item.json.account_id + '/conversations/' + $('Normalized Message').item.json.conversation_id }}"
+              },
+              {
+                "property": "data_consent_given",
+                "value": "={{ $fromAI('data_consent_given', 'true SOLO si el cliente autorizó explícitamente el tratamiento de sus datos personales (Habeas Data, Ley 1581); de lo contrario false.', 'boolean', 'false') }}"
+              }
+            ]
+          },
+          "firstName": "={{ $fromAI('firstname', 'Primer nombre del cliente si lo compartió en el chat', 'string', '') || $('Normalized Message').item.json.contact_name }}",
+          "lastName": "={{ $fromAI('lastname', 'Apellido del cliente si lo mencionó, vacío si no', 'string', '') }}",
+          "phoneNumber": "={{ $fromAI('phone', 'Teléfono de contacto del cliente. En WhatsApp es el número desde el que escribe; en Instagram/Messenger, el número que el cliente comparta en el chat. Vacío si no lo tienes.', 'string', '') || ($('Normalized Message').item.json.channel === 'whatsapp' ? $('Normalized Message').item.json.sender_id : '') }}\n"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.hubspotTool",
+      "typeVersion": 2.2,
+      "position": [
+        -96,
+        320
+      ],
+      "id": "d3f2a5b1-6c40-4a2e-9a3a-7d1e6b0c9f21",
+      "name": "Save Contact (HubSpot)",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Crea el negocio (deal) de venta para el proyecto de interés. Llámala DESPUÉS de guardar el contacto. Requiere que existan en HubSpot las propiedades project, lead_company, unit_type_interest y financing_bank_preference. Nota: el Deal Stage inicial se elige manualmente en el nodo.",
+        "authentication": "appToken",
+        "resource": "deal",
+        "stage": "1399089990",
+        "additionalFields": {
+          "amount": "={{ $fromAI('amount', 'Precio en COP del tipo de vivienda de interés, tal como salió de la herramienta de catálogo. Déjalo vacío si el precio aún no está confirmado.', 'string', '') }}",
+          "associatedVids": "={{ [$('Save Contact (HubSpot)').first().json.vid] }}",
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "project",
+                "value": "={{ $fromAI('project_id', 'project_id del proyecto de interés.', 'string') }}"
+              },
+              {
+                "property": "lead_company",
+                "value": "={{ $fromAI('company_slug', 'Slug de la empresa: exactamente aurora o bahia.', 'string') }}"
+              },
+              {
+                "property": "unit_type_interest",
+                "value": "={{ $fromAI('unit_type', 'Tipo/unidad de vivienda de interés, ej. Medianera 3 alcobas.', 'string', '') }}"
+              },
+              {
+                "property": "financing_bank_preference",
+                "value": "={{ $fromAI('financing_bank', 'Banco de interés si lo mencionó: exactamente BBVA, AV Villas, Bancolombia, FNA, otro o no_sabe.', 'string', 'no_sabe') }}"
+              }
+            ]
+          },
+          "dealName": "={{ $('Normalized Message').item.json.contact_name + ' — ' + $fromAI('project_id', 'project_id del proyecto de interés.', 'string') + ($fromAI('unit_type', 'Tipo/unidad de vivienda de interés, ej. Medianera 3 alcobas.', 'string', '') ? ' (' + $fromAI('unit_type', 'Tipo/unidad de vivienda de interés, ej. Medianera 3 alcobas.', 'string', '') + ')' : '') }}\n"
+        }
+      },
+      "type": "n8n-nodes-base.hubspotTool",
+      "typeVersion": 2.2,
+      "position": [
+        -96,
+        528
+      ],
+      "id": "5c8e1a4d-2f6b-4e8a-b3c5-9a0d7f4e2b18",
+      "name": "Create Deal (HubSpot)",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Escala la conversación a un asesor humano creando un ticket en HubSpot. Guarda primero el contacto con la herramienta de contacto — el ticket se asocia a él. Úsala cuando: el cliente está listo para pagar la cuota inicial o comprar; pregunta por crédito/financiación con un banco y necesita confirmación de un asesor; falta un precio u otro dato clave en el catálogo; hay una queja; el cliente pide explícitamente hablar con una persona; o hay confusión repetida que no logras resolver. Requiere que existan en HubSpot (objeto Ticket) las propiedades motivo_escalamiento, project, lead_channel y telefono_contacto. Después de importar este workflow debes elegir manualmente el pipeline y la etapa (stage) del ticket en el nodo.",
+        "authentication": "appToken",
+        "resource": "ticket",
+        "pipelineId": "0",
+        "stageId": "1",
+        "ticketName": "={{ $fromAI('ticket_name', 'Resumen corto (máx. 10 palabras) del motivo de escalamiento, ej. \"Listo para pagar cuota inicial - Altos del Rio\".', 'string') }}",
+        "additionalFields": {
+          "associatedContactIds": [],
+          "description": "={{ $fromAI('description', 'Contexto completo para el asesor humano: nombre del cliente, teléfono, proyecto y empresa de interés, y motivo exacto del escalamiento (listo para comprar, pregunta de crédito, precio faltante, queja, pidió un humano, u otro).', 'string') }}",
+          "priority": "HIGH"
+        }
+      },
+      "type": "n8n-nodes-base.hubspotTool",
+      "typeVersion": 2.2,
+      "position": [
+        -96,
+        720
+      ],
+      "id": "e2b4c7a9-8d1f-4c6e-a5b2-3f9c8e0d1a67",
+      "name": "Escalate to Human Advisor",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "uiUuuhehxhFSw8vP",
+          "name": "HubSpot Service Key account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://chatwoot.example.com/api/v1/accounts/{{ $('Normalized Message').item.json.account_id }}/conversations/{{ $('Normalized Message').item.json.conversation_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"content\": $json.output, \"message_type\": \"outgoing\" } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -528,
+        64
+      ],
+      "id": "aaee3333-3333-4333-8333-333333333333",
+      "name": "Send Chatwoot Reply",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Fer12HMq8MLEmIJu",
+          "name": "Chatwoot API (service user)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "<GOOGLE_SHEET_ID>",
+          "mode": "list",
+          "cachedResultName": "Catálogo de Proyectos — Agente de IA",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<GOOGLE_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Conversaciones",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "conversation_id": "={{ $('Normalized Message').item.json.session_id }}",
+            "channel": "={{ $('Normalized Message').item.json.channel }}",
+            "contact_name": "={{ $('Normalized Message').item.json.contact_name }}",
+            "sender_id": "={{ $('Normalized Message').item.json.sender_id }}",
+            "user_message": "={{ $('Normalized Message').item.json.message_text }}",
+            "agent_response": "={{ $('Sales Agent').item.json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_name",
+              "displayName": "contact_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sender_id",
+              "displayName": "sender_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_message",
+              "displayName": "user_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent_response",
+              "displayName": "agent_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -304,
+        64
+      ],
+      "id": "aa11bb22-cc33-4dd4-8ee5-ff6677889902",
+      "name": "Log Conversation (Sheets)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TNBK2gE8IDPgrF15",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "description": "Registra el lead en el CRM en una sola llamada: guarda o actualiza el contacto y, opcionalmente, crea el negocio (deal) y/o escala con un ticket. Llámala cuando haya interés real en un proyecto y tengas al menos el nombre; pasa siempre el proyecto de interés. Pon create_deal=true cuando el cliente tenga interés concreto en una unidad. Pon escalate=true (con ticket_name y ticket_description) cuando: esté listo para comprar o pagar la cuota inicial, pregunte por crédito con un banco y requiera confirmación, falte un precio u otro dato del catálogo, haya una queja, pida hablar con una persona, o llegue un asunto que un asesor humano deba atender.",
+        "workflowId": {
+          "__rl": true,
+          "value": "FlAO2qRZUzGWFmfE",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/FlAO2qRZUzGWFmfE",
+          "cachedResultName": "D2C — CRM Registrar Lead (sub-workflow)"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sender_id": "={{ $('Normalized Message').item.json.sender_id }}",
+            "channel": "={{ $('Normalized Message').item.json.channel }}",
+            "contact_name": "={{ $('Normalized Message').item.json.contact_name }}",
+            "account_id": "={{ $('Normalized Message').item.json.account_id }}",
+            "conversation_id": "={{ $('Normalized Message').item.json.conversation_id }}",
+            "firstname": "={{ $fromAI('firstname', \"Primer nombre del cliente si lo compartió en el chat\", 'string', \"\") }}",
+            "lastname": "={{ $fromAI('lastname', \"Apellido del cliente si lo mencionó, vacío si no\", 'string', \"\") }}",
+            "email": "={{ $fromAI('email', \"Correo del cliente solo si lo compartió voluntariamente; vacío si no\", 'string', \"\") }}",
+            "phone": "={{ $fromAI('phone', \"Teléfono de contacto del cliente. En WhatsApp es el número desde el que escribe; en Instagram/Messenger, el número que el cliente comparta en el chat. Vacío si no lo tienes.\", 'string', \"\") }}",
+            "project_id": "={{ $fromAI('project_id', \"project_id del proyecto de interés (ej. altos-del-rio-vi o villa-serena-3).\", 'string', \"\") }}",
+            "company_slug": "={{ $fromAI('company_slug', \"Slug de la empresa dueña del proyecto: exactamente aurora o bahia.\", 'string', \"\") }}",
+            "needs_credit": "={{ $fromAI('needs_credit', \"¿El cliente necesita crédito? exactamente si, no o no_sabe.\", 'string', \"no_sabe\") }}",
+            "financing_bank": "={{ $fromAI('financing_bank', \"Banco de interés si lo mencionó: exactamente BBVA, AV Villas, Bancolombia, FNA, otro o no_sabe.\", 'string', \"no_sabe\") }}",
+            "bedrooms_wanted": "={{ $fromAI('bedrooms_wanted', \"Número de alcobas que busca el cliente si lo mencionó; solo el número.\", 'number', 0) }}",
+            "price_confirmation_pending": "={{ $fromAI('price_confirmation_pending', \"true si el agente NO pudo confirmar un precio del catálogo para lo que pidió el cliente; false si el precio sí estaba disponible.\", 'boolean', false) }}",
+            "data_consent_given": "={{ $fromAI('data_consent_given', \"true SOLO si el cliente autorizó explícitamente el tratamiento de sus datos personales (Habeas Data, Ley 1581); de lo contrario false.\", 'boolean', false) }}",
+            "create_deal": "={{ $fromAI('create_deal', \"true si el cliente mostró interés concreto en una unidad y se debe crear el negocio (deal).\", 'boolean', false) }}",
+            "unit_type": "={{ $fromAI('unit_type', \"Tipo/unidad de vivienda de interés, ej. Medianera 3 alcobas.\", 'string', \"\") }}",
+            "amount": "={{ $fromAI('amount', \"Precio en COP del tipo de vivienda de interés, tal como salió de la herramienta de catálogo. Déjalo vacío si el precio aún no está confirmado.\", 'string', \"\") }}",
+            "escalate": "={{ $fromAI('escalate', \"true si hay que escalar a un asesor humano: listo para comprar o pagar cuota inicial, duda de crédito con banco, falta un precio u otro dato del catálogo, queja, o pide explícitamente un humano.\", 'boolean', false) }}",
+            "ticket_name": "={{ $fromAI('ticket_name', \"Resumen corto (máx. 10 palabras) del motivo de escalamiento. Solo si escalate es true.\", 'string', \"\") }}",
+            "ticket_description": "={{ $fromAI('ticket_description', \"Contexto completo para el asesor humano: nombre, teléfono, proyecto y empresa de interés, y motivo exacto del escalamiento. Solo si escalate es true.\", 'string', \"\") }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "sender_id",
+              "displayName": "sender_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "contact_name",
+              "displayName": "contact_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "account_id",
+              "displayName": "account_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "firstname",
+              "displayName": "firstname",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "lastname",
+              "displayName": "lastname",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "project_id",
+              "displayName": "project_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "company_slug",
+              "displayName": "company_slug",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "needs_credit",
+              "displayName": "needs_credit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "financing_bank",
+              "displayName": "financing_bank",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "bedrooms_wanted",
+              "displayName": "bedrooms_wanted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "price_confirmation_pending",
+              "displayName": "price_confirmation_pending",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "data_consent_given",
+              "displayName": "data_consent_given",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "create_deal",
+              "displayName": "create_deal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "unit_type",
+              "displayName": "unit_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "escalate",
+              "displayName": "escalate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "ticket_name",
+              "displayName": "ticket_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "ticket_description",
+              "displayName": "ticket_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        48,
+        256
+      ],
+      "id": "3783448d-9f63-4756-980c-3ffb74eed190",
+      "name": "Call 'D2C — CRM Registrar Lead (sub-workflow)'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Is Chatwoot inbound text?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Chatwoot Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Normalized Message": {
+      "main": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Chatwoot Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude (reasoning)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Project Info": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Active Projects": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Look Up Unit Price & Details": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Contact (HubSpot)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Deal (HubSpot)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalate to Human Advisor": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Chatwoot Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Conversation (Sheets)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot Webhook (all inboxes)": {
+      "main": [
+        [
+          {
+            "node": "Is Chatwoot inbound text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Chatwoot Message": {
+      "main": [
+        [
+          {
+            "node": "Normalized Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'D2C — CRM Registrar Lead (sub-workflow)'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d141efe9-928a-4ed0-928d-abad1a7b64d9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "<N8N_INSTANCE_ID>"
+  },
+  "nodeGroups": [],
+  "id": "tF4UU5eskdvrPmoC",
+  "tags": []
+}
